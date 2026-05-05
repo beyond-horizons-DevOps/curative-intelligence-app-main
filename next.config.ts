@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
   
-  // Development configurations
+  // Development configuration
   allowedDevOrigins: ['192.168.1.135'],
   
   // Image optimization
