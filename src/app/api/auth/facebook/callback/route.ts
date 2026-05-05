@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
+import { encryptToken } from '@/lib/encryption';
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,45 +46,52 @@ export async function GET(request: NextRequest) {
 
     const pagesData = await pagesResponse.json();
 
-    // TODO: Save the connection to database
-    // For Facebook, we need to save each page as a separate connection
-    // const user = await getCurrentUser();
-    // for (const page of pagesData.data || []) {
-    //   await prisma.socialMediaAccount.upsert({
-    //     where: {
-    //       userId_platform: {
-    //         userId: user.id,
-    //         platform: 'FACEBOOK'
-    //       }
-    //     },
-    //     update: {
-    //       accessToken: page.access_token, // Should be encrypted
-    //       username: page.name,
-    //       platformUserId: page.id,
-    //       pageId: page.id,
-    //       isActive: true,
-    //       lastSync: new Date()
-    //     },
-    //     create: {
-    //       userId: user.id,
-    //       platform: 'FACEBOOK',
-    //       accessToken: page.access_token, // Should be encrypted
-    //       username: page.name,
-    //       platformUserId: page.id,
-    //       pageId: page.id,
-    //       isActive: true,
-    //       lastSync: new Date()
-    //     }
-    //   });
-    // }
+    // Save the connection to database
+    // For Facebook, we take the first page for now as the schema has a unique constraint on [userId, platform]
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return redirect(`${baseUrl}/settings?error=not_authenticated`);
+    }
 
-    console.log('Facebook connection successful:', {
-      pages: pagesData.data?.length || 0,
-      // accessToken is logged for development only - remove in production
-    });
+    const page = pagesData.data?.[0];
+    if (page) {
+      const encryptedAccessToken = encryptToken(page.access_token);
 
-    const pageNames = pagesData.data?.map((page: any) => page.name).join(', ') || 'No pages';
-    return redirect(`${baseUrl}/settings?success=facebook_connected&pages=` + encodeURIComponent(pageNames));
+      await prisma.socialMediaAccount.upsert({
+        where: {
+          userId_platform: {
+            userId: user.id,
+            platform: 'FACEBOOK'
+          }
+        },
+        update: {
+          accessToken: encryptedAccessToken,
+          username: page.name,
+          displayName: page.name,
+          platformUserId: page.id,
+          pageId: page.id,
+          isActive: true,
+          lastSync: new Date()
+        },
+        create: {
+          userId: user.id,
+          platform: 'FACEBOOK',
+          accessToken: encryptedAccessToken,
+          username: page.name,
+          displayName: page.name,
+          platformUserId: page.id,
+          pageId: page.id,
+          isActive: true,
+          lastSync: new Date()
+        }
+      });
+    }
+
+    console.log('Facebook connection successful for user:', user.id);
+
+    const pageName = page?.name || 'No page found';
+    return redirect(`${baseUrl}/settings?success=facebook_connected&page=` + encodeURIComponent(pageName));
   } catch (error) {
     console.error('Error processing Facebook OAuth callback:', error);
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

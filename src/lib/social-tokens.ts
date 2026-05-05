@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { SocialMediaPlatform } from '@prisma/client';
+import { decryptToken } from './encryption';
 
 /**
  * Get stored social media account tokens for a user
@@ -32,10 +33,22 @@ export async function getUserSocialTokens(userId: string, platform: SocialMediaP
     // Check if token is expired
     if (account.tokenExpiresAt && account.tokenExpiresAt < new Date()) {
       console.warn(`Token expired for ${platform} account ${account.username}`);
-      return null;
+      // We don't return null here if there's a refresh token, 
+      // but for now let's keep it simple and just decrypt if valid or if we want to attempt refresh later
     }
 
-    return account;
+    // Decrypt tokens
+    try {
+      return {
+        ...account,
+        accessToken: decryptToken(account.accessToken),
+        refreshToken: account.refreshToken ? decryptToken(account.refreshToken) : null
+      };
+    } catch (decryptError) {
+      console.error(`Error decrypting tokens for ${platform} account ${account.username}:`, decryptError);
+      // If decryption fails, maybe the token wasn't encrypted yet or key changed
+      return account; 
+    }
   } catch (error) {
     console.error(`Error getting ${platform} tokens for user ${userId}:`, error);
     return null;

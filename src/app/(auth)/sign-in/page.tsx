@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import GoogleButton from '@/components/auth/GoogleButton'
+import FacebookButton from '@/components/auth/FacebookButton'
 
 export default function SignInPage() {
   const supabase = getSupabaseBrowser()
@@ -64,8 +65,9 @@ export default function SignInPage() {
         <h1 className="text-2xl font-display text-center text-brand-dark-umber">Welcome back</h1>
         <p className="mt-1 text-center text-sm text-[#7A6F6F]">Sign in to continue</p>
 
-        <div className="mt-6">
+        <div className="mt-6 space-y-3">
           <GoogleButton />
+          <FacebookButton />
         </div>
         <div className="my-4 flex items-center gap-3 text-xs text-[#7A6F6F]">
           <div className="h-px flex-1 bg-black/10" />

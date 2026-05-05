@@ -5,9 +5,10 @@ import { InstagramAPI } from './instagram-api';
 import { FacebookAPI } from './facebook-api';
 import { TwitterAPI } from './twitter-api';
 import { LinkedInAPI } from './linkedin-api';
+import { YouTubeAPI } from './youtube-api';
 import { getUserSocialAccounts } from '@/lib/social-tokens';
 
-export type Platform = 'INSTAGRAM' | 'FACEBOOK' | 'TWITTER' | 'LINKEDIN';
+export type Platform = 'INSTAGRAM' | 'FACEBOOK' | 'TWITTER' | 'LINKEDIN' | 'YOUTUBE';
 
 export interface SocialMediaAccount {
   id: string;
@@ -51,6 +52,7 @@ export class SocialMediaService {
   private facebookAPI = new FacebookAPI();
   private twitterAPI = new TwitterAPI();
   private linkedInAPI = new LinkedInAPI();
+  private youtubeAPI = new YouTubeAPI();
 
   /**
    * Get analytics for all connected social media accounts for a user
@@ -60,6 +62,7 @@ export class SocialMediaService {
     facebook: any;
     twitter: any;
     linkedin: any;
+    youtube: any;
     connectedAccounts: any[];
   }> {
     try {
@@ -67,11 +70,12 @@ export class SocialMediaService {
       const connectedAccounts = await getUserSocialAccounts(userId);
       
       // Fetch analytics from each connected platform
-      const [instagramData, facebookData, twitterData, linkedinData] = await Promise.all([
+      const [instagramData, facebookData, twitterData, linkedinData, youtubeData] = await Promise.all([
         this.instagramAPI.getAnalyticsForUser(userId),
         this.facebookAPI.getAnalyticsForUser(userId),
         this.twitterAPI.getAnalyticsForUser(userId),
-        this.linkedInAPI.getAnalyticsForUser(userId)
+        this.linkedInAPI.getAnalyticsForUser(userId),
+        this.youtubeAPI.getAnalyticsForUser(userId)
       ]);
 
       return {
@@ -79,6 +83,7 @@ export class SocialMediaService {
         facebook: facebookData,
         twitter: twitterData,
         linkedin: linkedinData,
+        youtube: youtubeData,
         connectedAccounts: connectedAccounts
       };
     } catch (error) {
@@ -88,6 +93,7 @@ export class SocialMediaService {
         facebook: null,
         twitter: null,
         linkedin: null,
+        youtube: null,
         connectedAccounts: []
       };
     }
@@ -122,6 +128,10 @@ export class SocialMediaService {
 
         case 'LINKEDIN':
           analyticsData = await this.linkedInAPI.getAnalyticsData(account.accessToken);
+          break;
+
+        case 'YOUTUBE':
+          analyticsData = await this.youtubeAPI.getAnalyticsData(account.accessToken);
           break;
 
         default:
@@ -215,6 +225,10 @@ export class SocialMediaService {
 
         case 'LINKEDIN':
           userInfo = await this.linkedInAPI.getProfile(account.accessToken);
+          break;
+
+        case 'YOUTUBE':
+          userInfo = await this.youtubeAPI.getChannelInfo(account.accessToken);
           break;
 
         default:
@@ -319,6 +333,25 @@ export class SocialMediaService {
             expiresIn: tokenData.expires_in,
           };
 
+        case 'YOUTUBE':
+          const youtubeClientId = process.env.YOUTUBE_CLIENT_ID;
+          const youtubeClientSecret = process.env.YOUTUBE_CLIENT_SECRET;
+          
+          if (!youtubeClientId || !youtubeClientSecret) {
+            throw new Error('YouTube credentials not configured');
+          }
+
+          tokenData = await this.youtubeAPI.refreshAccessToken(
+            account.refreshToken,
+            youtubeClientId,
+            youtubeClientSecret
+          );
+          return {
+            success: true,
+            newToken: tokenData.access_token,
+            expiresIn: tokenData.expires_in,
+          };
+
         default:
           throw new Error(`Token refresh not supported for platform: ${account.platform}`);
       }
@@ -343,6 +376,8 @@ export class SocialMediaService {
         return this.twitterAPI;
       case 'LINKEDIN':
         return this.linkedInAPI;
+      case 'YOUTUBE':
+        return this.youtubeAPI;
       default:
         throw new Error(`Unsupported platform: ${platform}`);
     }
@@ -375,6 +410,7 @@ export class SocialMediaService {
       FACEBOOK: null,
       TWITTER: null,
       LINKEDIN: null,
+      YOUTUBE: null,
     };
 
     successful.forEach(analytics => {
@@ -413,6 +449,7 @@ export class SocialMediaService {
         FACEBOOK: ['FACEBOOK_APP_ID', 'FACEBOOK_APP_SECRET'],
         TWITTER: ['TWITTER_CLIENT_ID', 'TWITTER_CLIENT_SECRET', 'TWITTER_BEARER_TOKEN'],
         LINKEDIN: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET'],
+        YOUTUBE: ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET'],
       };
 
       const requiredVars = envVars[platform];

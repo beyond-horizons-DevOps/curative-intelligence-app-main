@@ -1,30 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseUserFromCookies } from '@/lib/supabase';
-import { ensureUserBySupabase, extractProfileFromSupabaseUser } from '@/lib/user-supabase';
+import { getCurrentUser } from '@/lib/auth';
 import { getUserSocialAccounts } from '@/lib/social-tokens';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    // Get current authenticated user
-    const su = await getSupabaseUserFromCookies();
-    if (!su) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await ensureUserBySupabase(
-      su.id,
-      su.email ?? null,
-      extractProfileFromSupabaseUser(su)
-    );
+    const user = await getCurrentUser();
+    
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get user's connected social media accounts
     const connectedAccounts = await getUserSocialAccounts(user.id);
     
     // Create a comprehensive list including all platforms
-    const allPlatforms = ['INSTAGRAM', 'FACEBOOK', 'TWITTER', 'LINKEDIN'];
+    const allPlatforms = ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE', 'TWITTER', 'LINKEDIN'];
     
     const accounts = allPlatforms.map(platform => {
       const connected = connectedAccounts.find(acc => acc.platform === platform);
@@ -55,17 +46,30 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { platform, action } = await request.json();
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     if (action === 'connect') {
-      // Return the OAuth URL for the platform
       return NextResponse.json({ 
         success: true, 
         message: `${platform} connection initiated`,
-        authUrl: `/api/auth/${platform}`
+        authUrl: `/api/auth/${platform.toLowerCase()}`
       });
     } else if (action === 'disconnect') {
-      // TODO: Implement actual disconnect logic when user auth is ready
-      // This would revoke tokens and mark account as inactive in database
+      await prisma.socialMediaAccount.updateMany({
+        where: {
+          userId: user.id,
+          platform: platform.toUpperCase() as any
+        },
+        data: {
+          isActive: false,
+          lastSync: new Date()
+        }
+      });
+
       return NextResponse.json({ 
         success: true, 
         message: `${platform} disconnected successfully`

@@ -1,17 +1,27 @@
 import { prisma } from './prisma';
+import { getSupabaseUserFromCookies } from './supabase';
+import { ensureUserBySupabase, extractProfileFromSupabaseUser } from './user-supabase';
 
 /**
  * Get the current authenticated user from session
- * This is a placeholder implementation during the Clerk->Supabase migration
  * Returns null if user is not authenticated
  */
-export async function getCurrentUser(): Promise<{ id: string; email?: string } | null> {
+export async function getCurrentUser(): Promise<{ id: string; email?: string | null } | null> {
   try {
-    // TODO: Implement proper Supabase authentication check
-    // For now, we'll need to get the user ID from the request context
-    // This is a placeholder that will need to be updated with proper auth
-    console.warn('getCurrentUser: Placeholder implementation - proper auth needed');
-    return null;
+    const su = await getSupabaseUserFromCookies();
+    
+    if (!su) {
+      return null;
+    }
+
+    // Ensure user exists in our database and get their internal ID
+    const user = await ensureUserBySupabase(
+      su.id,
+      su.email ?? null,
+      extractProfileFromSupabaseUser(su)
+    );
+    
+    return user;
   } catch (error) {
     console.error('Error getting current user:', error);
     return null;

@@ -8,9 +8,14 @@ import React from 'react'
 type Props = {
   label?: string
   redirectTo?: string
+  withAnalytics?: boolean
 }
 
-export default function GoogleButton({ label = 'Continue with Google', redirectTo }: Props) {
+export default function GoogleButton({ 
+  label = 'Continue with Google', 
+  redirectTo,
+  withAnalytics = true 
+}: Props) {
   const [loading, setLoading] = React.useState(false)
   const supabase = getSupabaseBrowser()
   const { toast } = useToast()
@@ -24,15 +29,22 @@ export default function GoogleButton({ label = 'Continue with Google', redirectT
           ? window.location.origin
           : process.env.NEXT_PUBLIC_SITE_URL || ''
       
-      // Redirect to auth callback which will create the database user
       const callbackUrl = `${origin}/api/auth/callback`
       const finalDestination = redirectTo || '/dashboard'
+      
+      const scopes = withAnalytics 
+        ? 'openid email profile https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly'
+        : 'openid email profile'
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${callbackUrl}?next=${encodeURIComponent(finalDestination)}`,
-          queryParams: { prompt: 'select_account' },
+          scopes: scopes,
+          queryParams: { 
+            prompt: 'select_account',
+            access_type: 'offline',
+          },
         },
       })
       if (error) {

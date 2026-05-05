@@ -54,6 +54,20 @@ const socialPlatforms: SocialMediaPlatform[] = [
     authUrl: '/api/auth/facebook'
   },
   {
+    id: 'youtube',
+    name: 'YouTube',
+    icon: 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo.png',
+    description: 'Track your channel growth, video views, and subscriber engagement.',
+    color: 'bg-[#FF0000]',
+    limitations: [
+      'Requires YouTube Channel',
+      'Analytics API must be enabled in Google Cloud',
+      'Some metrics may have 24-48h delay',
+      'Requires specific OAuth scopes for analytics'
+    ],
+    authUrl: '/api/auth/youtube'
+  },
+  {
     id: 'twitter',
     name: 'Twitter (X)',
     icon: 'https://upload.wikimedia.org/wikipedia/commons/5/57/X_logo_2023_%28white%29.png',
@@ -95,48 +109,13 @@ export default function SocialMediaConnections() {
   const fetchConnectedAccounts = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
       const response = await fetch('/api/social-media/accounts');
       if (response.ok) {
         const data = await response.json();
         setAccounts(data);
-      } else {
-        // Mock data for development
-        setAccounts([
-          {
-            id: '1',
-            platform: 'instagram',
-            username: 'sample_user',
-            isConnected: false,
-            followerCount: 1250,
-          },
-          {
-            id: '2',
-            platform: 'facebook',
-            username: 'Sample Page',
-            isConnected: false,
-            followerCount: 2800,
-          },
-          {
-            id: '3',
-            platform: 'twitter',
-            username: '@sample_user',
-            isConnected: false,
-            followerCount: 890,
-          },
-          {
-            id: '4',
-            platform: 'linkedin',
-            username: 'Sample Company',
-            isConnected: false,
-            followerCount: 450,
-          },
-        ]);
       }
     } catch (error) {
       console.error('Error fetching connected accounts:', error);
-      // Set mock data on error
-      setAccounts([]);
     } finally {
       setLoading(false);
     }
@@ -147,18 +126,8 @@ export default function SocialMediaConnections() {
     try {
       const platformData = socialPlatforms.find(p => p.id === platform);
       if (platformData?.authUrl) {
-        // In a real implementation, this would redirect to OAuth flow
-        window.open(platformData.authUrl, '_blank', 'width=600,height=600');
-        
-        // Simulate connection after a delay
-        setTimeout(() => {
-          setAccounts(prev => prev.map(account => 
-            account.platform === platform 
-              ? { ...account, isConnected: true, lastSync: new Date() }
-              : account
-          ));
-          setConnecting(null);
-        }, 2000);
+        // Redirect to the initiate route which redirects to OAuth
+        window.location.href = platformData.authUrl;
       }
     } catch (error) {
       console.error('Error connecting account:', error);
@@ -168,12 +137,19 @@ export default function SocialMediaConnections() {
 
   const handleDisconnect = async (platform: string) => {
     try {
-      // TODO: Add actual API call to disconnect
-      setAccounts(prev => prev.map(account => 
-        account.platform === platform 
-          ? { ...account, isConnected: false, lastSync: undefined }
-          : account
-      ));
+      const response = await fetch('/api/social-media/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: platform.toUpperCase(), action: 'disconnect' })
+      });
+      
+      if (response.ok) {
+        setAccounts(prev => prev.map(account => 
+          account.platform === platform 
+            ? { ...account, isConnected: false, lastSync: undefined }
+            : account
+        ));
+      }
     } catch (error) {
       console.error('Error disconnecting account:', error);
     }

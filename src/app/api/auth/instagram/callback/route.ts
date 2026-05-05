@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
+import { encryptToken } from '@/lib/encryption';
 
 export async function GET(request: NextRequest) {
   try {
@@ -54,38 +57,43 @@ export async function GET(request: NextRequest) {
 
     const profileData = await profileResponse.json();
 
-    // TODO: Save the connection to database
-    // const user = await getCurrentUser(); // Get current user from auth
-    // await prisma.socialMediaAccount.upsert({
-    //   where: {
-    //     userId_platform: {
-    //       userId: user.id,
-    //       platform: 'INSTAGRAM'
-    //     }
-    //   },
-    //   update: {
-    //     accessToken: tokenData.access_token, // Should be encrypted
-    //     username: profileData.username,
-    //     platformUserId: profileData.id,
-    //     isActive: true,
-    //     lastSync: new Date()
-    //   },
-    //   create: {
-    //     userId: user.id,
-    //     platform: 'INSTAGRAM',
-    //     accessToken: tokenData.access_token, // Should be encrypted
-    //     username: profileData.username,
-    //     platformUserId: profileData.id,
-    //     isActive: true,
-    //     lastSync: new Date()
-    //   }
-    // });
+    // Save the connection to database
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      console.error('No authenticated user found during Instagram callback');
+      return redirect(`${baseUrl}/settings?error=not_authenticated`);
+    }
 
-    console.log('Instagram connection successful:', {
-      userId: profileData.id,
-      username: profileData.username,
-      // accessToken is logged for development only - remove in production
+    // Encrypt the access token
+    const encryptedAccessToken = encryptToken(tokenData.access_token);
+
+    await prisma.socialMediaAccount.upsert({
+      where: {
+        userId_platform: {
+          userId: user.id,
+          platform: 'INSTAGRAM'
+        }
+      },
+      update: {
+        accessToken: encryptedAccessToken,
+        username: profileData.username,
+        platformUserId: profileData.id,
+        isActive: true,
+        lastSync: new Date()
+      },
+      create: {
+        userId: user.id,
+        platform: 'INSTAGRAM',
+        accessToken: encryptedAccessToken,
+        username: profileData.username,
+        platformUserId: profileData.id,
+        isActive: true,
+        lastSync: new Date()
+      }
     });
+
+    console.log('Instagram connection successful for user:', user.id);
 
     return redirect(`${baseUrl}/settings?success=instagram_connected&username=` + encodeURIComponent(profileData.username));
   } catch (error) {
